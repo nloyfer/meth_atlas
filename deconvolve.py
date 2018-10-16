@@ -5,20 +5,23 @@ from scipy import optimize
 import argparse
 import os.path as op
 import sys
+from multiprocessing import Pool
+
 
 ATLAS_FILE = 'atlas.csv'
 OUT_PATH = 'out.csv'
 NR_CHRS_XTICKS = 30         # number of characters to be printed of the xticks
-FIG_SIZE = (15, 7)         # figure size
+FIG_SIZE = (15, 7)          # figure size
 COLOR_MAP = 'gist_ncar'     # color map. e.g gist_ncar, nipy_spectral, etc.
                             # See https://matplotlib.org/users/colormaps.html
 
 
 
-def decon_single_samp2(samp, atlas):
+def decon_single_samp(samp, atlas):
     """
     Deconvolve a single sample, using NNLS, to get the mixture coefficients.
     :param samp: a vector of a single sample
+    :param atlas: the atlas DadtaFrame
     :return: the mixture coefficients (of size 25)
     """
     # remove missing sites from both sample and atlas:
@@ -31,6 +34,7 @@ def decon_single_samp2(samp, atlas):
     mixture, residual = optimize.nnls(red_atlas, samp)
     mixture /= np.sum(mixture)
     return mixture.round(3)
+
 
 class Deconvolve:
     def __init__(self, atlas_path, samp_path, out_path=None, slim=False, plot=False):
@@ -126,20 +130,20 @@ class Deconvolve:
 
     def plot_res(self, df):
         import matplotlib.pylab as plt
+        import matplotlib.cm
+
+        nr_tissues = len(self.atlas['tissues'])
+
         plt.figure(figsize=FIG_SIZE)
 
         barWidth = 0.85
         r = [i for i in range(self.samples.shape[1])]
         pre = np.zeros((1, df.shape[1]))
-        my_colors = np.random.rand(25, 3)
-        my_colors = [(my_colors[x, 0], my_colors[x, 1], my_colors[x, 2]) for x in range(25)]
-        import matplotlib
         cmap = matplotlib.cm.get_cmap(COLOR_MAP)
-        norm = matplotlib.colors.Normalize(vmin=0.0, vmax=25.0)
-        my_colors = [cmap(norm(k)) for k in range(25)]
+        norm = matplotlib.colors.Normalize(vmin=0.0, vmax=float(nr_tissues))
+        my_colors = [cmap(norm(k)) for k in range(nr_tissues)]
 
-        print(my_colors)
-        for i in range(len(self.atlas['tissues'])):
+        for i in range(nr_tissues):
             adj_pre = [x for x in pre.flatten()]
             plt.bar(r,
                     list(df.iloc[i, :]),
@@ -151,10 +155,7 @@ class Deconvolve:
             pre += np.array(df.iloc[i, :])
 
         # Custom x axis
-        plt.xticks(r,
-                   [w[:NR_CHRS_XTICKS] for w in self.samples.columns],
-                   rotation='vertical')
-        # plt.subplots_adjust(bottom=.25)
+        plt.xticks(r, [w[:NR_CHRS_XTICKS] for w in self.samples.columns], rotation='vertical')
         plt.xlabel("sample")
         # Add a legend
         plt.legend(loc='upper left', bbox_to_anchor=(1, 1), ncol=1)
@@ -162,40 +163,20 @@ class Deconvolve:
         plt.tight_layout(rect=[0, 0, .83, 1])
         plt.show()
 
+
     def run(self):
 
-        res_table = np.empty((self.atlas['table'].shape[1], self.samples.shape[1]))
-        for i, samp_name in enumerate(list(self.samples)):
-            res_table[:, i] = self.decon_single_samp(self.samples[samp_name])
-        # print(res_table)
-
-        df = pd.DataFrame(res_table, columns=self.samples.columns, index=self.atlas['tissues'])
-
-        # Dump results
-        if self.slim:   # without indexes and header line
-            df.to_csv(self.out_path, index=None, header=None)
-        else:
-            df.to_csv(self.out_path)
-
-        # Plot pie charts
-        if self.plot:
-            self.plot_res(df)
-
-
-    def run_p(self):
-        from multiprocessing import Pool
-
-        res_table = np.empty((self.atlas['table'].shape[1], self.samples.shape[1]))
-        # print(res_table)
-
+        # run deconvolution on all samples in parallel
         processes = []
         with Pool() as p:
             for i, samp_name in enumerate(list(self.samples)):
-                processes.append(p.apply_async(decon_single_samp2, (self.samples[samp_name], self.atlas['table'])))
+                processes.append(p.apply_async(decon_single_samp, (self.samples[samp_name], self.atlas['table'])))
             p.close()
             p.join()
 
+        # collect the results to 'res_table':
         arr = [pr.get() for pr in processes]
+        res_table = np.empty((self.atlas['table'].shape[1], self.samples.shape[1]))
         for i in range(len(arr)):
             res_table[:, i] = arr[i]
 
@@ -215,7 +196,7 @@ class Deconvolve:
 def main(args):
     try:
         Deconvolve(atlas_path=args.atlas_path, samp_path=args.samples_path, out_path=args.out_path, slim=args.slim,
-                   plot=args.plot).run_p()
+                   plot=args.plot).run()
     except Exception as e:
         print(e)
 
