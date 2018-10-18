@@ -6,6 +6,7 @@ import argparse
 import os.path as op
 import sys
 from multiprocessing import Pool
+import math
 
 
 ATLAS_FILE = 'atlas.csv'
@@ -130,49 +131,49 @@ class Deconvolve:
         del samples['acc']
         return samples
 
-    def plot_res2(self, df):
-        import matplotlib.pylab as plt
-        import matplotlib.cm
-
-        import seaborn as sns
-
-        nr_tissues = len(self.atlas['tissues'])
-        # plt.figure(figsize=FIG_SIZE)
-        sns.set_style('ticks')
-        # sns.set()
-        current_palette_4 = sns.color_palette("hls", 25)
-        sns.set_palette(current_palette_4)
-        df.T.plot(kind='bar', stacked=True)
-
-        # barWidth = 0.85
-        r = [i for i in range(self.samples.shape[1])]
-        # pre = np.zeros((1, df.shape[1]))
-        # cmap = matplotlib.cm.get_cmap(COLOR_MAP)
-        # norm = matplotlib.colors.Normalize(vmin=0.0, vmax=float(nr_tissues))
-        # my_colors = [cmap(norm(k)) for k in range(nr_tissues)]
-        #
-        # # print(my_colors)
-        #
-        # for i in range(nr_tissues):
-        #     adj_pre = [x for x in pre.flatten()]
-        #     plt.bar(r,
-        #             list(df.iloc[i, :]),
-        #             edgecolor='white',
-        #             width=barWidth,
-        #             label=self.atlas['tissues'][i],
-        #             bottom=adj_pre,
-        #             color=my_colors[i])
-        #     pre += np.array(df.iloc[i, :])
-
-        # Custom x axis
-        plt.xticks(r, [w[:NR_CHRS_XTICKS] for w in self.samples.columns], rotation='vertical')
-        plt.xlabel("sample")
-        # Add a legend
-        plt.legend(loc='upper left', bbox_to_anchor=(1, 1), ncol=1)
-        plt.title('Deconvolution Results\n' + self.out_bname)
-        plt.tight_layout(rect=[0, 0, .83, 1])
-        # plt.savefig(self.out_bname + '_deconv_plot.png')
-        plt.show()
+    # def plot_res2(self, df):
+    #     import matplotlib.pylab as plt
+    #     import matplotlib.cm
+    #
+    #     import seaborn as sns
+    #
+    #     nr_tissues = len(self.atlas['tissues'])
+    #     # plt.figure(figsize=FIG_SIZE)
+    #     sns.set_style('ticks')
+    #     # sns.set()
+    #     current_palette_4 = sns.color_palette("hls", 25)
+    #     sns.set_palette(current_palette_4)
+    #     df.T.plot(kind='bar', stacked=True)
+    #
+    #     # barWidth = 0.85
+    #     r = [i for i in range(self.samples.shape[1])]
+    #     # pre = np.zeros((1, df.shape[1]))
+    #     # cmap = matplotlib.cm.get_cmap(COLOR_MAP)
+    #     # norm = matplotlib.colors.Normalize(vmin=0.0, vmax=float(nr_tissues))
+    #     # my_colors = [cmap(norm(k)) for k in range(nr_tissues)]
+    #     #
+    #     # # print(my_colors)
+    #     #
+    #     # for i in range(nr_tissues):
+    #     #     adj_pre = [x for x in pre.flatten()]
+    #     #     plt.bar(r,
+    #     #             list(df.iloc[i, :]),
+    #     #             edgecolor='white',
+    #     #             width=barWidth,
+    #     #             label=self.atlas['tissues'][i],
+    #     #             bottom=adj_pre,
+    #     #             color=my_colors[i])
+    #     #     pre += np.array(df.iloc[i, :])
+    #
+    #     # Custom x axis
+    #     plt.xticks(r, [w[:NR_CHRS_XTICKS] for w in self.samples.columns], rotation='vertical')
+    #     plt.xlabel("sample")
+    #     # Add a legend
+    #     plt.legend(loc='upper left', bbox_to_anchor=(1, 1), ncol=1)
+    #     plt.title('Deconvolution Results\n' + self.out_bname)
+    #     plt.tight_layout(rect=[0, 0, .83, 1])
+    #     # plt.savefig(self.out_bname + '_deconv_plot.png')
+    #     plt.show()
 
     def _remove_small_tissues(self, df):
         df['maxVal'] = np.max(df, axis=1)
@@ -181,25 +182,20 @@ class Deconvolve:
         others = others.sum(axis=0)
         good = good.append(others.rename('other'))
         del good['maxVal']
+        good.to_csv(self.out_bname + '_goods.csv', float_format='%.3f')
         return good
 
     def plot_res(self, df):
         import matplotlib.pylab as plt
         import matplotlib.cm
-        import math
-        import matplotlib as mpl
+        matplotlib.rcParams['hatch.linewidth'] = 0.3
 
-        # df = self._remove_small_tissues(df)
+        # hatches = [None, 'xxx', '...']
 
-        tissues = self.atlas['tissues']
-        # tissues = list(df.index)
-        mpl.rcParams['hatch.linewidth'] = 0.3
-
-        hatches = [None, 'xxx', '...']
-
+        df = self._remove_small_tissues(df)
+        tissues = list(df.index)
         nr_tissues = len(tissues)
-        nr_colors = int(math.ceil(nr_tissues / len(hatches)) + 1)
-
+        # nr_colors = int(math.ceil(nr_tissues / len(hatches)) + 1)
         plt.figure(figsize=FIG_SIZE)
 
         r = [i for i in range(self.samples.shape[1])]
@@ -207,8 +203,8 @@ class Deconvolve:
 
         # generate colors:
         cmap = matplotlib.cm.get_cmap(COLOR_MAP)
-        norm = matplotlib.colors.Normalize(vmin=0.0, vmax=float(nr_colors))
-        my_colors = [cmap(norm(k)) for k in range(1, nr_colors)]
+        norm = matplotlib.colors.Normalize(vmin=0.0, vmax=float(nr_tissues - 1))
+        my_colors = [cmap(norm(k)) for k in range(nr_tissues - 1)] + [(.5, .5, .5, 1.)]
 
         for i in range(nr_tissues):
             adj_pre = [x for x in pre.flatten()]
@@ -218,9 +214,7 @@ class Deconvolve:
                     width=0.85,
                     label=tissues[i],
                     bottom=adj_pre,
-                    color=my_colors[i % len(my_colors)],
-                    # hatch=hatches[i % len(hatches)])
-                    hatch=hatches[int(i // math.ceil(nr_tissues / len(hatches)))])
+                    color=my_colors[i])
             pre += np.array(df.iloc[i, :])
 
         # Custom x axis
