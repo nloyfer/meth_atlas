@@ -7,18 +7,84 @@ import os.path as op
 import sys
 from multiprocessing import Pool
 import math
+import matplotlib.pylab as plt
+import matplotlib.cm
 
-
-ATLAS_FILE = 'atlas.csv'
 ATLAS_FILE = 'Atlas.LUMP0.7.100bpblock.100CpGs+ECC500.csv.gz'
 OUT_PATH = '.'
 NR_CHRS_XTICKS = 30         # number of characters to be printed of the xticks
 FIG_SIZE = (15, 7)          # figure size
-COLOR_MAP = 'gist_ncar'     # color map. e.g gist_ncar, nipy_spectral, etc.
+COLOR_MAP = 'Vega20'        # color map. e.g gist_ncar, nipy_spectral, etc.
                             # See https://matplotlib.org/users/colormaps.html
 
 
-def decon_single_samp(samp, samp_name, atlas):
+###
+
+def hide_small_tissues(df):
+    others = df[df < 0.01].sum()
+    df[df < 0.01] = 0
+    df = df.append(others.rename('other'))
+    return df
+
+
+def gen_bars_colors_hatches(nr_tissues):
+    matplotlib.rcParams['hatch.linewidth'] = 0.3
+    hatches = [None, 'xxx', '...']
+
+    nr_colors = int(math.ceil(nr_tissues / len(hatches)) + 1)
+
+    # generate bars colors:
+    cmap = matplotlib.cm.get_cmap(COLOR_MAP)
+    norm = matplotlib.colors.Normalize(vmin=0.0, vmax=float(nr_colors))
+    my_colors = [cmap(norm(k)) for k in range(nr_colors)]
+
+    def get_bar_color(i):
+        return my_colors[i % len(my_colors)], \
+               hatches[int(i // math.ceil(nr_tissues / len(hatches)))]
+
+    return [get_bar_color(x) for x in range(nr_tissues - 1)] + \
+           [((.5, .5, .5, 1.), None)]
+
+
+def plot_res(df, outpath):
+
+    df = hide_small_tissues(df)
+    nr_tissues = df.shape[0]
+
+    # generate bars colors and hatches:
+    colors_hatches = gen_bars_colors_hatches(nr_tissues)
+
+    plt.figure(figsize=FIG_SIZE)
+    r = [i for i in range(df.shape[1])]
+    pre = np.zeros((1, df.shape[1]))
+    for i in range(nr_tissues):
+        adj_pre = [x for x in pre.flatten()]
+        plt.bar(r,
+                list(df.iloc[i, :]),
+                edgecolor='white',
+                width=0.85,
+                label=df.index[i],
+                bottom=adj_pre,
+                color=colors_hatches[i][0],
+                hatch=colors_hatches[i][1])
+        pre += np.array(df.iloc[i, :])
+
+    # Custom x axis
+    plt.xticks(r, [w[:NR_CHRS_XTICKS] for w in df.columns], rotation='vertical')
+    plt.xlabel("sample")
+    plt.xlim(-.6, len(r) - .4)
+
+    # Add a legend and a title
+    plt.legend(loc='upper left', bbox_to_anchor=(1, 1), ncol=1)
+    plt.title('Deconvolution Results\n' + op.basename(outpath))
+
+    # adjust layout, save and show
+    plt.tight_layout(rect=[0, 0, .83, 1])
+    plt.savefig(outpath + '_deconv_plot.png')
+    plt.show()
+
+
+def decon_single_samp(samp, atlas):
     """
     Deconvolve a single sample, using NNLS, to get the mixture coefficients.
     :param samp: a vector of a single sample
@@ -28,7 +94,7 @@ def decon_single_samp(samp, samp_name, atlas):
     # remove missing sites from both sample and atlas:
     data = pd.concat([samp, atlas], axis=1).dropna(axis=0)
     if data.empty:
-        print('Warning: sample {} is empty'.format(samp_name), file=sys.stderr)
+        print('Warning: skipping an empty sample ', file=sys.stderr)
         # print('Dropped {} missing sites'.format(self.atlas.shape[0] - red_atlas.shape[0]))
         return np.nan
     samp = data.iloc[:, 0]
@@ -37,42 +103,41 @@ def decon_single_samp(samp, samp_name, atlas):
     # get the mixture coefficients by deconvolution (non-negative least squares)
     mixture, residual = optimize.nnls(red_atlas, samp)
     mixture /= np.sum(mixture)
-    return (mixture, samp_name)
+    return mixture
 
 
 class Deconvolve:
     def __init__(self, atlas_path, samp_path, out_dir, slim=False, plot=False):
-        self.out_dir = out_dir      # Output dir to save mixture results and plot
-        self.slim = slim            # Write results table without indexes and header line (bool)
-        self.plot = plot            # Plot results (bool)
-        self.samp_path = samp_path
-        self.out_bname = self.get_bname()
+        self.out_dir = out_dir                      # Output dir to save mixture results and plot
+        self.slim = slim                            # Write results table w\o indexes and header (bool)
+        self.plot = plot                            # Plot results (bool)
+        self.out_bname = self.get_bname(samp_path)
 
         # Load input files:
-        self.atlas = self.load_atlas(atlas_path)        # Atlas
-        self.samples = self.load_sample()               # Samples to deconvolve
+        self.atlas = self.load_atlas(atlas_path)    # Atlas
+        self.samples = self.load_sample(samp_path)  # Samples to deconvolve
 
-    def get_bname(self):
+    def get_bname(self, samp_path):
         """
         Compose output files path:
         join the out_dir path with the basename of the samples file
         remove csv and gz extensions.
         """
-        base_fname = op.basename(self.samp_path)
+        base_fname = op.basename(samp_path)
 
         if base_fname.endswith('.gz'):
             base_fname = op.splitext(base_fname)[0]
         base_fname = op.splitext(base_fname)[0]
-        out_path = op.join(self.out_dir, base_fname)
-        return out_path
+        return op.join(self.out_dir, base_fname)
 
-    def load_atlas(self, atlas_path):
+    @staticmethod
+    def load_atlas(atlas_path):
         """
         Read the atlas csv file, save data in self.atlas
         :param atlas_path: Path to the atlas csv file
         """
         # validate path:
-        self._validate_csv_file(atlas_path)
+        Deconvolve._validate_csv_file(atlas_path)
 
         # Read atlas, sort it and drop duplicates
         # print('atlas_path', atlas_path)
@@ -81,7 +146,8 @@ class Deconvolve:
         df = df.sort_values(by='acc').drop_duplicates(subset='acc').reset_index(drop=True)
         return {'table': df.iloc[:, 1:], 'acc': df['acc'].to_frame(), 'tissues': list(df.columns)[1:]}
 
-    def _validate_csv_file(self, csv_path):
+    @staticmethod
+    def _validate_csv_file(csv_path):
         """
         Validate an input csv file. Raise an exception or print warning if necessary.
         :param csv_path: input csv path
@@ -115,129 +181,30 @@ class Deconvolve:
             err_msg = op.basename(csv_path) + ': ' + err_msg
             raise ValueError(err_msg)
 
-    def load_sample(self):
+    def load_sample(self, samp_path):
         """
         Read samples csv file. Reduce it to the atlas sites, and save data in self.samples
         Note: samples file must contain a header line.
         """
 
         # validate path:
-        self._validate_csv_file(self.samp_path)
+        Deconvolve._validate_csv_file(samp_path)
 
-        samples = pd.read_csv(self.samp_path)
+        samples = pd.read_csv(samp_path)
         samples.rename(columns={list(samples)[0]: 'acc'}, inplace=True)
         samples = samples.sort_values(by='acc').drop_duplicates(subset='acc').reset_index(drop=True)
         samples = samples.merge(self.atlas['acc'], how='inner', on='acc')
         del samples['acc']
         return samples
 
-    # def plot_res2(self, df):
-    #     import matplotlib.pylab as plt
-    #     import matplotlib.cm
-    #
-    #     import seaborn as sns
-    #
-    #     nr_tissues = len(self.atlas['tissues'])
-    #     # plt.figure(figsize=FIG_SIZE)
-    #     sns.set_style('ticks')
-    #     # sns.set()
-    #     current_palette_4 = sns.color_palette("hls", 25)
-    #     sns.set_palette(current_palette_4)
-    #     df.T.plot(kind='bar', stacked=True)
-    #
-    #     # barWidth = 0.85
-    #     r = [i for i in range(self.samples.shape[1])]
-    #     # pre = np.zeros((1, df.shape[1]))
-    #     # cmap = matplotlib.cm.get_cmap(COLOR_MAP)
-    #     # norm = matplotlib.colors.Normalize(vmin=0.0, vmax=float(nr_tissues))
-    #     # my_colors = [cmap(norm(k)) for k in range(nr_tissues)]
-    #     #
-    #     # # print(my_colors)
-    #     #
-    #     # for i in range(nr_tissues):
-    #     #     adj_pre = [x for x in pre.flatten()]
-    #     #     plt.bar(r,
-    #     #             list(df.iloc[i, :]),
-    #     #             edgecolor='white',
-    #     #             width=barWidth,
-    #     #             label=self.atlas['tissues'][i],
-    #     #             bottom=adj_pre,
-    #     #             color=my_colors[i])
-    #     #     pre += np.array(df.iloc[i, :])
-    #
-    #     # Custom x axis
-    #     plt.xticks(r, [w[:NR_CHRS_XTICKS] for w in self.samples.columns], rotation='vertical')
-    #     plt.xlabel("sample")
-    #     # Add a legend
-    #     plt.legend(loc='upper left', bbox_to_anchor=(1, 1), ncol=1)
-    #     plt.title('Deconvolution Results\n' + self.out_bname)
-    #     plt.tight_layout(rect=[0, 0, .83, 1])
-    #     # plt.savefig(self.out_bname + '_deconv_plot.png')
-    #     plt.show()
-
-    def _remove_small_tissues(self, df):
-        df['maxVal'] = np.max(df, axis=1)
-        good = df.loc[df['maxVal'] >= 0.01]
-        others = df.loc[df['maxVal'] < 0.01]
-        others = others.sum(axis=0)
-        good = good.append(others.rename('other'))
-        del good['maxVal']
-        good.to_csv(self.out_bname + '_goods.csv', float_format='%.3f')
-        return good
-
-    def plot_res(self, df):
-        import matplotlib.pylab as plt
-        import matplotlib.cm
-        matplotlib.rcParams['hatch.linewidth'] = 0.3
-
-        # hatches = [None, 'xxx', '...']
-
-        df = self._remove_small_tissues(df)
-        tissues = list(df.index)
-        nr_tissues = len(tissues)
-        # nr_colors = int(math.ceil(nr_tissues / len(hatches)) + 1)
-        plt.figure(figsize=FIG_SIZE)
-
-        r = [i for i in range(self.samples.shape[1])]
-        pre = np.zeros((1, df.shape[1]))
-
-        # generate colors:
-        cmap = matplotlib.cm.get_cmap(COLOR_MAP)
-        norm = matplotlib.colors.Normalize(vmin=0.0, vmax=float(nr_tissues - 1))
-        my_colors = [cmap(norm(k)) for k in range(nr_tissues - 1)] + [(.5, .5, .5, 1.)]
-
-        for i in range(nr_tissues):
-            adj_pre = [x for x in pre.flatten()]
-            plt.bar(r,
-                    list(df.iloc[i, :]),
-                    edgecolor='white',
-                    width=0.85,
-                    label=tissues[i],
-                    bottom=adj_pre,
-                    color=my_colors[i])
-            pre += np.array(df.iloc[i, :])
-
-        # Custom x axis
-        plt.xticks(r, [w[:NR_CHRS_XTICKS] for w in self.samples.columns], rotation='vertical')
-        plt.xlabel("sample")
-        # Add a legend
-        plt.legend(loc='upper left', bbox_to_anchor=(1, 1), ncol=1)
-        plt.title('Deconvolution Results\n' + op.basename(self.out_bname))
-        plt.tight_layout(rect=[0, 0, .83, 1])
-        plt.savefig(self.out_bname + '_deconv_plot.png')
-        plt.show()
-
-
     def run(self):
 
         # run deconvolution on all samples in parallel
         processes = []
         with Pool() as p:
-            for i, samp_name in enumerate(list(self.samples)):
-                processes.append(p.apply_async(decon_single_samp,
-                                               (self.samples[samp_name],
-                                                samp_name,
-                                                self.atlas['table'])))
+            for i, smp_name in enumerate(list(self.samples)):
+                params = (self.samples[smp_name], self.atlas['table'])
+                processes.append(p.apply_async(decon_single_samp, params))
             p.close()
             p.join()
 
@@ -245,9 +212,7 @@ class Deconvolve:
         arr = [pr.get() for pr in processes]
         res_table = np.empty((self.atlas['table'].shape[1], self.samples.shape[1]))
         for i in range(len(arr)):
-            res_table[:, i] = arr[i][0]
-            # print(arr[i][1], end=', ')
-        print('')
+            res_table[:, i] = arr[i]
         df = pd.DataFrame(res_table, columns=self.samples.columns, index=self.atlas['tissues'])
 
         # Dump results
@@ -260,12 +225,15 @@ class Deconvolve:
 
         # Plot pie charts
         if self.plot:
-            self.plot_res(df)
+            plot_res(df, self.out_bname)
 
 
 def main(args):
     try:
-        Deconvolve(atlas_path=args.atlas_path, samp_path=args.samples_path, out_dir=args.out_dir, slim=args.slim,
+        Deconvolve(atlas_path=args.atlas_path,
+                   samp_path=args.samples_path,
+                   out_dir=args.out_dir,
+                   slim=args.slim,
                    plot=args.plot).run()
     except Exception as e:
         print(e)
@@ -275,11 +243,15 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--atlas_path', '-a', default=ATLAS_FILE,
                         help='Path to Atlas csv file.\n'
+                             'The first column must be Illumina IDs '
+                           '(e.g cg00000029)')
+    parser.add_argument('samples_path',
+                        help='Path to samples csv file. It must have a header line.\n'
                              'The first column must be Illumina IDs (e.g cg00000029)')
-    parser.add_argument('samples_path', help='Path to samples csv file. It must have a header line.\n'
-                                             'The first column must be Illumina IDs (e.g cg00000029)')
-    parser.add_argument('--slim', action='store_true', help='Write the results table *without indexes and header line*')
-    parser.add_argument('--plot', action='store_true', help='Plot pie charts of the results')
+    parser.add_argument('--slim', action='store_true',
+                        help='Write the results table *without indexes and header line*')
+    parser.add_argument('--plot', action='store_true',
+                        help='Plot pie charts of the results')
     parser.add_argument('--out_dir', '-o', default=OUT_PATH, help='Ouput directory')
 
     args = parser.parse_args()
