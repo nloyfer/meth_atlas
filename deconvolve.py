@@ -9,25 +9,42 @@ from multiprocessing import Pool
 import math
 import matplotlib.pylab as plt
 import matplotlib.cm
+import matplotlib.colors
 
 ATLAS_FILE = 'Atlas.LUMP0.7.100bpblock.100CpGs+ECC500.csv.gz'
 OUT_PATH = '.'
+
+# Plotting parameters:
 NR_CHRS_XTICKS = 30         # number of characters to be printed of the xticks
 FIG_SIZE = (15, 7)          # figure size
-COLOR_MAP = 'Vega20'        # color map. e.g gist_ncar, nipy_spectral, etc.
-                            # See https://matplotlib.org/users/colormaps.html
+COLOR_MAP = 'Vega20'        # color map. See https://matplotlib.org/users/colormaps.html
+# tissues with less than OTHERS_THRESH contribution will be clustered to 'other' (gray):
+OTHERS_THRESH = 0.01
 
 
-###
+####################################
+#       Plotting methods           #
+####################################
 
 def hide_small_tissues(df):
-    others = df[df < 0.01].sum()
-    df[df < 0.01] = 0
+    """
+    tissues with very small contribution are grouped to the 'other' category.
+    :return: The DataFrame with the new category ('other'),
+             where the low-contribution tissues are set to 0.
+    """
+    others = df[df < OTHERS_THRESH].sum()
+    df[df < OTHERS_THRESH] = 0.0
     df = df.append(others.rename('other'))
     return df
 
 
 def gen_bars_colors_hatches(nr_tissues):
+    """
+    Generate combinations of colors and hatches for the tissues bars
+    Every tissue will get a tuple of (color, hatch)
+    the last tuple is for the 'other' category, and is always gray with no hatch.
+    :return: a list of tuples, with length == nr_tissues
+    """
     matplotlib.rcParams['hatch.linewidth'] = 0.3
     hatches = [None, 'xxx', '...']
 
@@ -36,43 +53,42 @@ def gen_bars_colors_hatches(nr_tissues):
     # generate bars colors:
     cmap = matplotlib.cm.get_cmap(COLOR_MAP)
     norm = matplotlib.colors.Normalize(vmin=0.0, vmax=float(nr_colors))
-    my_colors = [cmap(norm(k)) for k in range(nr_colors)]
+    colors = [cmap(norm(k)) for k in range(nr_colors)]
 
-    def get_bar_color(i):
-        return my_colors[i % len(my_colors)], \
-               hatches[int(i // math.ceil(nr_tissues / len(hatches)))]
+    def get_i_bar_tuple(i):
+        color_ind = i % nr_colors
+        hatch_ind = int(i // math.ceil(nr_tissues / len(hatches)))
+        return colors[color_ind], hatches[hatch_ind]
 
-    return [get_bar_color(x) for x in range(nr_tissues - 1)] + \
-           [((.5, .5, .5, 1.), None)]
+    colors_hatches_list = [get_i_bar_tuple(i) for i in range(nr_tissues - 1)]
+    return colors_hatches_list + [((.5, .5, .5, 1.), None)]
 
 
 def plot_res(df, outpath):
 
     df = hide_small_tissues(df)
-    nr_tissues = df.shape[0]
+    nr_tissues, nr_samples = df.shape
 
     # generate bars colors and hatches:
     colors_hatches = gen_bars_colors_hatches(nr_tissues)
 
     plt.figure(figsize=FIG_SIZE)
-    r = [i for i in range(df.shape[1])]
-    pre = np.zeros((1, df.shape[1]))
+    r = [i for i in range(nr_samples)]
+    bottom = np.zeros(nr_samples)
     for i in range(nr_tissues):
-        adj_pre = [x for x in pre.flatten()]
-        plt.bar(r,
-                list(df.iloc[i, :]),
+        plt.bar(r, list(df.iloc[i, :]),
                 edgecolor='white',
                 width=0.85,
                 label=df.index[i],
-                bottom=adj_pre,
+                bottom=bottom,
                 color=colors_hatches[i][0],
                 hatch=colors_hatches[i][1])
-        pre += np.array(df.iloc[i, :])
+        bottom += np.array(df.iloc[i, :])
 
     # Custom x axis
     plt.xticks(r, [w[:NR_CHRS_XTICKS] for w in df.columns], rotation='vertical')
     plt.xlabel("sample")
-    plt.xlim(-.6, len(r) - .4)
+    plt.xlim(-.6, nr_samples - .4)
 
     # Add a legend and a title
     plt.legend(loc='upper left', bbox_to_anchor=(1, 1), ncol=1)
@@ -84,26 +100,9 @@ def plot_res(df, outpath):
     plt.show()
 
 
-def decon_single_samp(samp, atlas):
-    """
-    Deconvolve a single sample, using NNLS, to get the mixture coefficients.
-    :param samp: a vector of a single sample
-    :param atlas: the atlas DadtaFrame
-    :return: the mixture coefficients (of size 25)
-    """
-    # remove missing sites from both sample and atlas:
-    data = pd.concat([samp, atlas], axis=1).dropna(axis=0)
-    if data.empty:
-        print('Warning: skipping an empty sample ', file=sys.stderr)
-        # print('Dropped {} missing sites'.format(self.atlas.shape[0] - red_atlas.shape[0]))
-        return np.nan
-    samp = data.iloc[:, 0]
-    red_atlas = data.iloc[:, 1:]
-
-    # get the mixture coefficients by deconvolution (non-negative least squares)
-    mixture, residual = optimize.nnls(red_atlas, samp)
-    mixture /= np.sum(mixture)
-    return mixture
+####################################
+#     Deconvolve class             #
+####################################
 
 
 class Deconvolve:
@@ -111,7 +110,7 @@ class Deconvolve:
         self.out_dir = out_dir                      # Output dir to save mixture results and plot
         self.slim = slim                            # Write results table w\o indexes and header (bool)
         self.plot = plot                            # Plot results (bool)
-        self.out_bname = self.get_bname(samp_path)
+        self.out_bname = self.get_bname(samp_path)  # output files path w/o extension
 
         # Load input files:
         self.atlas = self.load_atlas(atlas_path)    # Atlas
@@ -181,6 +180,28 @@ class Deconvolve:
             err_msg = op.basename(csv_path) + ': ' + err_msg
             raise ValueError(err_msg)
 
+    @staticmethod
+    def decon_single_samp(samp, atlas):
+        """
+        Deconvolve a single sample, using NNLS, to get the mixture coefficients.
+        :param samp: a vector of a single sample
+        :param atlas: the atlas DadtaFrame
+        :return: the mixture coefficients (of size 25)
+        """
+        # remove missing sites from both sample and atlas:
+        data = pd.concat([samp, atlas], axis=1).dropna(axis=0)
+        if data.empty:
+            print('Warning: skipping an empty sample ', file=sys.stderr)
+            # print('Dropped {} missing sites'.format(self.atlas.shape[0] - red_atlas.shape[0]))
+            return np.nan
+        samp = data.iloc[:, 0]
+        red_atlas = data.iloc[:, 1:]
+
+        # get the mixture coefficients by deconvolution (non-negative least squares)
+        mixture, residual = optimize.nnls(red_atlas, samp)
+        mixture /= np.sum(mixture)
+        return mixture
+
     def load_sample(self, samp_path):
         """
         Read samples csv file. Reduce it to the atlas sites, and save data in self.samples
@@ -204,7 +225,7 @@ class Deconvolve:
         with Pool() as p:
             for i, smp_name in enumerate(list(self.samples)):
                 params = (self.samples[smp_name], self.atlas['table'])
-                processes.append(p.apply_async(decon_single_samp, params))
+                processes.append(p.apply_async(Deconvolve.decon_single_samp, params))
             p.close()
             p.join()
 
@@ -228,31 +249,37 @@ class Deconvolve:
             plot_res(df, self.out_bname)
 
 
-def main(args):
-    try:
-        Deconvolve(atlas_path=args.atlas_path,
-                   samp_path=args.samples_path,
-                   out_dir=args.out_dir,
-                   slim=args.slim,
-                   plot=args.plot).run()
-    except Exception as e:
-        print(e)
+####################################
+#            main                  #
+####################################
 
 
-if __name__ == '__main__':
+def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--atlas_path', '-a', default=ATLAS_FILE,
-                        help='Path to Atlas csv file.\n'
-                             'The first column must be Illumina IDs '
-                           '(e.g cg00000029)')
+                        help='Path to Atlas csv file.\nThe first column must be'
+                             ' Illumina IDs (e.g cg00000029)')
+
     parser.add_argument('samples_path',
                         help='Path to samples csv file. It must have a header line.\n'
                              'The first column must be Illumina IDs (e.g cg00000029)')
+
     parser.add_argument('--slim', action='store_true',
                         help='Write the results table *without indexes and header line*')
+
     parser.add_argument('--plot', action='store_true',
                         help='Plot pie charts of the results')
+
     parser.add_argument('--out_dir', '-o', default=OUT_PATH, help='Ouput directory')
 
     args = parser.parse_args()
-    main(args)
+
+    Deconvolve(atlas_path=args.atlas_path,
+               samp_path=args.samples_path,
+               out_dir=args.out_dir,
+               slim=args.slim,
+               plot=args.plot).run()
+
+
+if __name__ == '__main__':
+    main()
