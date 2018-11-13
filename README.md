@@ -16,6 +16,7 @@ The reference atlas used on the paper is supplied in this repository - *referenc
 A file containing one or more samples, with similar requirements as the atlas file (csv, header, index column).
 The CpG (Illumina ID) column may contain different CpG sites than the ones in the atlas files, as long as they share some sites.
 
+An example dummy file is supplied, *example.csv*.
 
 ### Usage
 
@@ -42,6 +43,8 @@ optional arguments:
 
 ### Example
 ```
-deconvolve.py -a reference_atlas.csv sample.csv --plot
+deconvolve.py -a reference_atlas.csv example.csv --plot
 ```
-will deconvolve all samples given as columns in *sample.csv*, dump the resulting coefficients to a csv file named *sample_deconv_output.csv*, plot them, and dump the figure to *sample_deconv_plot.png*.
+will deconvolve all samples given as columns in *example.csv*, dump the resulting coefficients to a csv file named *example_deconv_output.csv*, plot them, and dump the figure to *example_deconv_plot.png*.
+
+
