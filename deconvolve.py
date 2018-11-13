@@ -17,7 +17,7 @@ OUT_PATH = '.'
 # Plotting parameters:
 NR_CHRS_XTICKS = 30         # number of characters to be printed of the xticks
 FIG_SIZE = (15, 7)          # figure size
-COLOR_MAP = 'Vega20'        # color map. See https://matplotlib.org/users/colormaps.html
+COLOR_MAP = 'tab10'        # color map. See https://matplotlib.org/users/colormaps.html
 # tissues with less than OTHERS_THRESH contribution will be clustered to 'other' (gray):
 OTHERS_THRESH = 0.01
 
@@ -86,7 +86,7 @@ def plot_res(df, outpath):
         bottom += np.array(df.iloc[i, :])
 
     # Custom x axis
-    plt.xticks(r, [w[:NR_CHRS_XTICKS] for w in df.columns], rotation='vertical')
+    plt.xticks(r, [w[:NR_CHRS_XTICKS] for w in df.columns], rotation='vertical', fontsize=7)
     plt.xlabel("sample")
     plt.xlim(-.6, nr_samples - .4)
 
@@ -181,7 +181,7 @@ class Deconvolve:
             raise ValueError(err_msg)
 
     @staticmethod
-    def decon_single_samp(samp, atlas):
+    def decon_single_samp(samp, samp_name, atlas):
         """
         Deconvolve a single sample, using NNLS, to get the mixture coefficients.
         :param samp: a vector of a single sample
@@ -194,6 +194,8 @@ class Deconvolve:
             print('Warning: skipping an empty sample ', file=sys.stderr)
             # print('Dropped {} missing sites'.format(self.atlas.shape[0] - red_atlas.shape[0]))
             return np.nan
+        print('{}: {} sites'.format(samp_name, data.shape[0]), file=sys.stderr)
+
         samp = data.iloc[:, 0]
         red_atlas = data.iloc[:, 1:]
 
@@ -224,7 +226,7 @@ class Deconvolve:
         processes = []
         with Pool() as p:
             for i, smp_name in enumerate(list(self.samples)):
-                params = (self.samples[smp_name], self.atlas['table'])
+                params = (self.samples[smp_name], smp_name, self.atlas['table'])
                 processes.append(p.apply_async(Deconvolve.decon_single_samp, params))
             p.close()
             p.join()
@@ -270,7 +272,7 @@ def main():
     parser.add_argument('--plot', action='store_true',
                         help='Plot pie charts of the results')
 
-    parser.add_argument('--out_dir', '-o', default=OUT_PATH, help='Ouput directory')
+    parser.add_argument('--out_dir', '-o', default=OUT_PATH, help='Output directory')
 
     args = parser.parse_args()
 
