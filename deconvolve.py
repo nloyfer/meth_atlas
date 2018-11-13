@@ -11,14 +11,14 @@ import matplotlib.pylab as plt
 import matplotlib.cm
 import matplotlib.colors
 
-ATLAS_FILE = 'Atlas.LUMP0.7.100bpblock.100CpGs+ECC500.csv.gz'
+ATLAS_FILE = 'reference_atlas.csv'
 OUT_PATH = '.'
 
 # Plotting parameters:
 NR_CHRS_XTICKS = 30         # number of characters to be printed of the xticks
 FIG_SIZE = (15, 7)          # figure size
 COLOR_MAP = 'tab10'        # color map. See https://matplotlib.org/users/colormaps.html
-# tissues with less than OTHERS_THRESH contribution will be clustered to 'other' (gray):
+# tissues with less than OTHERS_THRESH contribution will be clustered to 'other' (black):
 OTHERS_THRESH = 0.01
 
 
@@ -42,7 +42,7 @@ def gen_bars_colors_hatches(nr_tissues):
     """
     Generate combinations of colors and hatches for the tissues bars
     Every tissue will get a tuple of (color, hatch)
-    the last tuple is for the 'other' category, and is always gray with no hatch.
+    the last tuple is for the 'other' category, and is always black with no hatch.
     :return: a list of tuples, with length == nr_tissues
     """
     matplotlib.rcParams['hatch.linewidth'] = 0.3
@@ -61,7 +61,7 @@ def gen_bars_colors_hatches(nr_tissues):
         return colors[color_ind], hatches[hatch_ind]
 
     colors_hatches_list = [get_i_bar_tuple(i) for i in range(nr_tissues - 1)]
-    return colors_hatches_list + [((.5, .5, .5, 1.), None)]
+    return colors_hatches_list + [((0. 0. 0. 1), None)]
 
 
 def plot_res(df, outpath):
@@ -270,7 +270,7 @@ def main():
                         help='Write the results table *without indexes and header line*')
 
     parser.add_argument('--plot', action='store_true',
-                        help='Plot pie charts of the results')
+                        help='Plot stacked bars of the results')
 
     parser.add_argument('--out_dir', '-o', default=OUT_PATH, help='Output directory')
 
