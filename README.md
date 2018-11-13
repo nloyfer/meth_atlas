@@ -14,6 +14,7 @@ The reference atlas used on the paper is supplied in this repository - *referenc
 
 ### samples
 A file containing one or more samples, with similar requirements as the atlas file (csv, header, index column).
+The CpG (Illumina ID) column may contain different CpG sites than the ones in the atlas files, as long as they share some sites.
 
 
 ### Usage
