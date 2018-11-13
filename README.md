@@ -18,6 +18,8 @@ The CpG (Illumina ID) column may contain different CpG sites than the ones in th
 
 An example dummy file is supplied, *examples.csv*.
 
+---
+
 ### Usage
 
 ```
@@ -41,6 +43,7 @@ optional arguments:
                         Output directory
 ```
 
+---
 ### Example
 ```
 deconvolve.py -a reference_atlas.csv examples.csv --plot
