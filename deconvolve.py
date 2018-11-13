@@ -11,13 +11,13 @@ import matplotlib.pylab as plt
 import matplotlib.cm
 import matplotlib.colors
 
-ATLAS_FILE = 'reference_atlas.csv'
+ATLAS_FILE = './reference_atlas.csv'
 OUT_PATH = '.'
 
 # Plotting parameters:
 NR_CHRS_XTICKS = 30         # number of characters to be printed of the xticks
 FIG_SIZE = (15, 7)          # figure size
-COLOR_MAP = 'tab10'        # color map. See https://matplotlib.org/users/colormaps.html
+COLOR_MAP = 'tab10'         # color map. See https://matplotlib.org/users/colormaps.html
 # tissues with less than OTHERS_THRESH contribution will be clustered to 'other' (black):
 OTHERS_THRESH = 0.01
 
@@ -61,7 +61,7 @@ def gen_bars_colors_hatches(nr_tissues):
         return colors[color_ind], hatches[hatch_ind]
 
     colors_hatches_list = [get_i_bar_tuple(i) for i in range(nr_tissues - 1)]
-    return colors_hatches_list + [((0. 0. 0. 1), None)]
+    return colors_hatches_list + [((0, 0, 0, 1), None)]
 
 
 def plot_res(df, outpath):
@@ -86,7 +86,7 @@ def plot_res(df, outpath):
         bottom += np.array(df.iloc[i, :])
 
     # Custom x axis
-    plt.xticks(r, [w[:NR_CHRS_XTICKS] for w in df.columns], rotation='vertical', fontsize=7)
+    plt.xticks(r, [w[:NR_CHRS_XTICKS] for w in df.columns], rotation='vertical', fontsize=9)
     plt.xlabel("sample")
     plt.xlim(-.6, nr_samples - .4)
 
