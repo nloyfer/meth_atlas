@@ -10,7 +10,7 @@ A reference atlas file.
 - Contains a header (columns names).
 - The first column must be Illumina IDs.
 
-The reference atlas used on the paper is supplied in this repository - "reference_atlas.csv".
+The reference atlas used on the paper is supplied in this repository - *reference_atlas.csv*.
 
 ### samples
 A file containing one or more samples, with similar requirements as the atlas file (csv, header, index column).
