@@ -46,7 +46,7 @@ def gen_bars_colors_hatches(nr_tissues):
     :return: a list of tuples, with length == nr_tissues
     """
     matplotlib.rcParams['hatch.linewidth'] = 0.3
-    hatches = [None, 'xxx', '...']
+    hatches = [None, 'xxx', '...', 'O', '++'][:nr_tissues // 7]
 
     nr_colors = int(math.ceil(nr_tissues / len(hatches)) + 1)
 
