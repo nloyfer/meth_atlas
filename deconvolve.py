@@ -18,6 +18,7 @@ OUT_PATH = '.'
 NR_CHRS_XTICKS = 30         # number of characters to be printed of the xticks
 FIG_SIZE = (15, 7)          # figure size
 COLOR_MAP = 'tab10'         # color map. See https://matplotlib.org/users/colormaps.html
+#COLOR_MAP = 'Vega10'
 # tissues with less than OTHERS_THRESH contribution will be clustered to 'other' (black):
 OTHERS_THRESH = 0.01
 
@@ -106,10 +107,11 @@ def plot_res(df, outpath):
 
 
 class Deconvolve:
-    def __init__(self, atlas_path, samp_path, out_dir, slim=False, plot=False):
+    def __init__(self, atlas_path, samp_path, out_dir, resid, slim=False, plot=False):
         self.out_dir = out_dir                      # Output dir to save mixture results and plot
         self.slim = slim                            # Write results table w\o indexes and header (bool)
         self.plot = plot                            # Plot results (bool)
+        self.resid = resid                          # Output residuals as well
         self.out_bname = self.get_bname(samp_path)  # output files path w/o extension
 
         # Load input files:
@@ -202,7 +204,7 @@ class Deconvolve:
         # get the mixture coefficients by deconvolution (non-negative least squares)
         mixture, residual = optimize.nnls(red_atlas, samp)
         mixture /= np.sum(mixture)
-        return mixture
+        return mixture, residual
 
     def load_sample(self, samp_path):
         """
@@ -234,8 +236,9 @@ class Deconvolve:
         # collect the results to 'res_table':
         arr = [pr.get() for pr in processes]
         res_table = np.empty((self.atlas['table'].shape[1], self.samples.shape[1]))
+        resids_table = np.empty((self.samples.shape[1], 1))
         for i in range(len(arr)):
-            res_table[:, i] = arr[i]
+            res_table[:, i], resids_table[i] = arr[i]
         df = pd.DataFrame(res_table, columns=self.samples.columns, index=self.atlas['tissues'])
 
         # Dump results
@@ -245,6 +248,10 @@ class Deconvolve:
             df.to_csv(out_path, index=None, header=None, float_format='%.3f')
         else:
             df.to_csv(out_path, float_format='%.3f')
+
+        if self.resid:
+            rf = pd.DataFrame(resids_table, columns=['Residuals'], index=self.samples.columns)
+            rf.to_csv(self.out_bname + '_residuals.csv', float_format='%.3f')
 
         # Plot pie charts
         if self.plot:
@@ -269,6 +276,9 @@ def main():
     parser.add_argument('--slim', action='store_true',
                         help='Write the results table *without indexes and header line*')
 
+    parser.add_argument('--residuals', '-r', action='store_true',
+                        help='Output residuals to a separate file')
+
     parser.add_argument('--plot', action='store_true',
                         help='Plot stacked bars of the results')
 
@@ -279,6 +289,7 @@ def main():
     Deconvolve(atlas_path=args.atlas_path,
                samp_path=args.samples_path,
                out_dir=args.out_dir,
+               resid=args.residuals,
                slim=args.slim,
                plot=args.plot).run()
 
