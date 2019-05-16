@@ -65,7 +65,7 @@ def gen_bars_colors_hatches(nr_tissues):
     return colors_hatches_list + [((0, 0, 0, 1), None)]
 
 
-def plot_res(df, outpath):
+def plot_res(df, outpath, show=False):
 
     df = hide_small_tissues(df)
     nr_tissues, nr_samples = df.shape
@@ -98,7 +98,8 @@ def plot_res(df, outpath):
     # adjust layout, save and show
     plt.tight_layout(rect=[0, 0, .83, 1])
     plt.savefig(outpath + '_deconv_plot.png')
-    plt.show()
+    if show:
+        plt.show()
 
 
 ####################################
@@ -170,7 +171,7 @@ class Deconvolve:
                 err_msg = 'file must contain at least 2 columns (accessions and a values). '
 
             # first column must be Illumina IDs column
-            elif not str(input_head.iloc[0, 0]).startswith('cg'):
+            elif not str(input_head.iloc[0, 0]).startswith('cg'): 
                     err_msg = 'invalid Illumina ID column'
 
             # print a warning if the second column in the csv file has a numeric header
@@ -254,8 +255,7 @@ class Deconvolve:
             rf.to_csv(self.out_bname + '_residuals.csv', float_format='%.3f')
 
         # Plot pie charts
-        if self.plot:
-            plot_res(df, self.out_bname)
+        plot_res(df, self.out_bname, self.plot)
 
 
 ####################################
