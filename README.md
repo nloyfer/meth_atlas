@@ -1,6 +1,6 @@
 # Methylation Atlas Deconvolution
 
-This is a standalone program for deconvolution of array methylome.
+This is a standalone program for [deconvolution of array methylome](https://www.nature.com/articles/s41467-018-07466-6)[^1].
 It uses an input **reference atlas** file to deconvolve a given **sample**, or multiple samples.
 Outputs a csv file, and plots a stacked bars figure.
 
@@ -55,3 +55,5 @@ will deconvolve all samples given as columns in *examples.csv*, dump the resulti
 ### Pre-processing
 We recommend pre-processing the IDAT files using the script and reference sample listed [here](https://github.com/nloyfer/meth_atlas/tree/master/pre_process#pre-processing).
 
+------------------
+[^1]: Moss, J.; Magenheim, J.; Neiman, D.; Zemmour, H.; Loyfer, N.; Korach, A.; Samet, Y.; Maoz, M.; Druid, H.; Arner, P.; et al. Comprehensive human cell-type methylation atlas reveals origins of circulating cell-free DNA in health and disease. Nat. Commun. 2018, 9, 5068.
