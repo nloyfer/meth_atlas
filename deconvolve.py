@@ -280,7 +280,7 @@ def main():
                         help='Output residuals to a separate file')
 
     parser.add_argument('--plot', action='store_true',
-                        help='Displty the stacked bars figure')
+                        help='Display the stacked bars figure')
 
     parser.add_argument('--out_dir', '-o', default=OUT_PATH, help='Output directory')
 
