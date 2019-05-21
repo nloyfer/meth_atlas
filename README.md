@@ -52,4 +52,6 @@ will deconvolve all samples given as columns in *examples.csv*, dump the resulti
 ![Image of bar plot](https://github.com/nloyfer/meth_atlas/blob/master/examples_deconv_plot.png)
 
 
+### Pre-processing
+We recommend pre-processing the iDat files using the script and reference sample listed [here](https://github.com/nloyfer/meth_atlas/tree/master/pre_process#pre-processing).
 
