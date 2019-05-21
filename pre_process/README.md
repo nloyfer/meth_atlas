@@ -1,6 +1,6 @@
 # Pre-Processing
 
-For optimal results, we recommend using `process_array.R` to generate the samples csv file from `iDat` couples of files.
+For optimal results, we recommend using `process_array.R` to generate the samples csv file from `IDAT` couples of files.
 This scripts normalizes the data using reference sample (`ref_sample.RData`), and filters by p-value, sex chromosomes and bead number.
 
 #### Requirenments:
