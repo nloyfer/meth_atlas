@@ -38,7 +38,7 @@ optional arguments:
                         Illumina IDs (e.g cg00000029)
   --slim                Write the results table *without indexes and header
                         line*
-  --plot                Displty the stacked bars figure
+  --plot                Display the stacked bars figure
   --out_dir OUT_DIR, -o OUT_DIR
                         Output directory
 ```
@@ -46,7 +46,7 @@ optional arguments:
 ---
 ### Example
 ```
-deconvolve.py -a reference_atlas.csv examples.csv --plot
+deconvolve.py -a reference_atlas.csv examples.csv
 ```
 will deconvolve all samples given as columns in *examples.csv*, dump the resulting coefficients to a csv file named *examples_deconv_output.csv*, plot them, and dump the figure to *examples_deconv_plot.png*.
 ![Image of bar plot](https://github.com/nloyfer/meth_atlas/blob/master/examples_deconv_plot.png)
