@@ -1,7 +1,6 @@
 # Pre-Processing
-
-For optimal results, we recommend using `process_array.R` to generate the samples csv file from `IDAT` couples of files.
-This scripts normalizes the data using reference sample (`ref_sample.RData`), and filters by p-value, sex chromosomes and bead number.
+For optimal results, we recommend using `process_array.R` to generate the samples csv file from a directory containing `IDAT` files.
+This script normalises the data using an arbitrary reference sample (`ref_sample.RData`), and filters by p-value, sex chromosomes and bead number. It also drops SNPs and non-CpG sites.
 
 #### Requirenments:
 - R [minfi package](https://bioconductor.org/packages/release/bioc/html/minfi.html).
