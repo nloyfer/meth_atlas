@@ -38,7 +38,7 @@ optional arguments:
                         Illumina IDs (e.g cg00000029)
   --slim                Write the results table *without indexes and header
                         line*
-  --plot                Plot stacked bars of the results
+  --plot                Displty the stacked bars figure
   --out_dir OUT_DIR, -o OUT_DIR
                         Output directory
 ```
