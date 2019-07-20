@@ -11,6 +11,7 @@ A reference atlas file.
 - The first column must be Illumina IDs.
 
 The reference atlas used on the paper is supplied in this repository - *reference_atlas.csv*.
+The full reference atlas, with ~390K sites (before the feature selection process) is also supplied - *full_reference_atlas.csv.gz*. For better deconvolurions results, it's recommended not to use the full atlas, but the smaller one.
 
 ### samples
 A file containing one or more samples, with similar requirements as the atlas file (csv, header, index column).
