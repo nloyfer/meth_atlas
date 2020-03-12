@@ -223,9 +223,7 @@ class Deconvolve:
         samples = pd.read_csv(samp_path)
         samples.rename(columns={list(samples)[0]: 'acc'}, inplace=True)
         samples = samples.sort_values(by='acc').drop_duplicates(subset='acc').reset_index(drop=True)
-        print(samples.shape)
         samples = samples.merge(self.atlas['acc'].to_frame(), how='inner', on='acc')
-        print(samples.shape)
         return samples
 
     def run(self):
