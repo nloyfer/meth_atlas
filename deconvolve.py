@@ -146,7 +146,7 @@ class Deconvolve:
         df = pd.read_csv(atlas_path)
         df.rename(columns={list(df)[0]: 'acc'}, inplace=True)
         df = df.sort_values(by='acc').drop_duplicates(subset='acc').reset_index(drop=True)
-        return {'table': df.iloc[:, 1:], 'acc': df['acc'].to_frame(), 'tissues': list(df.columns)[1:]}
+        return df
 
     @staticmethod
     def _validate_csv_file(csv_path):
@@ -184,20 +184,24 @@ class Deconvolve:
             raise ValueError(err_msg)
 
     @staticmethod
-    def decon_single_samp(samp, samp_name, atlas):
+    def decon_single_samp(samp, atlas):
         """
         Deconvolve a single sample, using NNLS, to get the mixture coefficients.
         :param samp: a vector of a single sample
         :param atlas: the atlas DadtaFrame
         :return: the mixture coefficients (of size 25)
         """
+
+        name = samp.columns[1]
+
         # remove missing sites from both sample and atlas:
-        data = pd.concat([samp, atlas], axis=1).dropna(axis=0)
+        data = samp.merge(atlas, on='acc', how='inner').copy().dropna(axis=0)
         if data.empty:
-            print('Warning: skipping an empty sample ', file=sys.stderr)
+            print('Warning: skipping an empty sample {}'.format(name), file=sys.stderr)
             # print('Dropped {} missing sites'.format(self.atlas.shape[0] - red_atlas.shape[0]))
             return np.nan
-        print('{}: {} sites'.format(samp_name, data.shape[0]), file=sys.stderr)
+        print('{}: {} sites'.format(name, data.shape[0]), file=sys.stderr)
+        del data['acc']
 
         samp = data.iloc[:, 0]
         red_atlas = data.iloc[:, 1:]
@@ -219,8 +223,9 @@ class Deconvolve:
         samples = pd.read_csv(samp_path)
         samples.rename(columns={list(samples)[0]: 'acc'}, inplace=True)
         samples = samples.sort_values(by='acc').drop_duplicates(subset='acc').reset_index(drop=True)
-        samples = samples.merge(self.atlas['acc'], how='inner', on='acc')
-        del samples['acc']
+        print(samples.shape)
+        samples = samples.merge(self.atlas['acc'].to_frame(), how='inner', on='acc')
+        print(samples.shape)
         return samples
 
     def run(self):
@@ -228,19 +233,21 @@ class Deconvolve:
         # run deconvolution on all samples in parallel
         processes = []
         with Pool() as p:
-            for i, smp_name in enumerate(list(self.samples)):
-                params = (self.samples[smp_name], smp_name, self.atlas['table'])
+            for i, smp_name in enumerate(list(self.samples)[1:]):
+                params = (self.samples[['acc', smp_name]], self.atlas)
                 processes.append(p.apply_async(Deconvolve.decon_single_samp, params))
             p.close()
             p.join()
 
+        self.samples = self.samples.iloc[:, 1:]
+
         # collect the results to 'res_table':
         arr = [pr.get() for pr in processes]
-        res_table = np.empty((self.atlas['table'].shape[1], self.samples.shape[1]))
+        res_table = np.empty((self.atlas.shape[1] - 1, self.samples.shape[1]))
         resids_table = np.empty((self.samples.shape[1], 1))
         for i in range(len(arr)):
             res_table[:, i], resids_table[i] = arr[i]
-        df = pd.DataFrame(res_table, columns=self.samples.columns, index=self.atlas['tissues'])
+        df = pd.DataFrame(res_table, columns=self.samples.columns, index=list(self.atlas.columns)[1:])
 
         # Dump results
         out_path = self.out_bname + '_deconv_output.csv'
@@ -280,7 +287,7 @@ def main():
                         help='Output residuals to a separate file')
 
     parser.add_argument('--plot', action='store_true',
-                        help='Display the stacked bars figure')
+                        help='Plot stacked bars of the results')
 
     parser.add_argument('--out_dir', '-o', default=OUT_PATH, help='Output directory')
 
